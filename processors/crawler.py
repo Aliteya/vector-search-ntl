@@ -1,8 +1,8 @@
 import pandas as pd
 import os
-import nltk
+from .text_processing import normalize
 import logging
-from typing import List
+
 import math
 
 pd.set_option('display.max_columns', None) 
@@ -14,29 +14,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
-
-def normalize(sentence) -> List[str]:
-    valid = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
-
-    logging.debug(f'Start normalize sentence: {sentence}')
-    tokenizer = nltk.TweetTokenizer()
-    stemmer = nltk.stem.LancasterStemmer()
-
-    sentence = tokenizer.tokenize(sentence)
-    sentence = [word for word in sentence if nltk.pos_tag([word])[0][1] in valid]
-    sentence = [stemmer.stem(word).lower() for word in sentence]
-
-    logging.debug(f'Normalized tokens: {sentence}')
-    return sentence
-
-
 class Crawler:
     def __init__(self):
         self.columns = ["title", "url", "text"]
         self.database = pd.DataFrame(columns=self.columns)
         logging.info("Initializing Crawler and starting crawl")
-        self.crawl(path="local_fs/")
+        self.crawl(path="../local_fs/")
         self.database.fillna(0, inplace=True)
         self.set_weights()
         self.save_database()
@@ -93,7 +76,7 @@ class Crawler:
                 self.database = pd.concat([self.database, data], axis=0, ignore_index=True)
     
     def set_weights(self) -> None:
-        counter = 9
+        counter = 0
         for column in self.database.columns[len(self.columns):]:
             counter += 1
             coef = math.log(len(self.database) / len(self.database[self.database[column] > 0]))
