@@ -19,7 +19,7 @@ class Crawler:
         self.columns = ["title", "url", "text"]
         self.database = pd.DataFrame(columns=self.columns)
         logging.info("Initializing Crawler and starting crawl")
-        self.crawl(path="../local_fs/")
+        self.crawl(path="local_fs")
         self.database.fillna(0, inplace=True)
         self.set_weights()
         self.save_database()
@@ -83,7 +83,7 @@ class Crawler:
             self.database[column] *= coef
 
     def save_database(self) -> None:
-        self.database.to_csv("data.csv")
+        self.database.to_csv("processors/data.csv")
 
 
 if __name__ == "__main__":

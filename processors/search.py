@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from text_processing import normalize
+from .text_processing import normalize
 
 class Search:
     def __init__(self, database: str = "data.csv"):
@@ -29,13 +29,10 @@ class Search:
         return sorted_results
 
 if __name__ == '__main__':
-    # Создаем экземпляр поисковика, указывая путь к нашему индексу
     search_engine = Search(database="processors/data.csv")
     
-    # Выполняем поиск
     user_query = "russia"
     search_results = search_engine.search(user_query)
     
-    # Выводим результаты
     print(f"\nSearch results for: '{user_query}'")
     print(search_results)
