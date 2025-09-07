@@ -22,10 +22,10 @@ class Search:
         
         scores = np.divide(up, down, out=np.zeros_like(up), where=down!=0)
 
-        results = self.database[["title", "url"]].copy()
-        results['score'] = scores
+        results = self.database[["TITLE", "URL"]].copy()
+        results['SCORE'] = scores
         
-        sorted_results = results[results['score'] > 0].sort_values(by='score', ascending=False).reset_index(drop=True)
+        sorted_results = results[results['SCORE'] > 0].sort_values(by='SCORE', ascending=False).reset_index(drop=True)
         return sorted_results
 
 if __name__ == '__main__':

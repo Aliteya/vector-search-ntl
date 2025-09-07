@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 class Crawler:
     def __init__(self):
-        self.columns = ["title", "url", "text"]
+        self.columns = ["TITLE", "URL", "TEXT"]
         self.database = pd.DataFrame(columns=self.columns)
         logging.info("Initializing Crawler and starting crawl")
         self.crawl(path="local_fs")
@@ -61,7 +61,7 @@ class Crawler:
                 )
 
                 tokenized_sentence = self.tokenize(
-                    main_data["text"].iat[-1]
+                    main_data["TEXT"].iat[-1]
                 )
 
 
