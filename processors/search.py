@@ -7,32 +7,40 @@ class Search:
         self.database = pd.read_csv(database, index_col=0)
         self.frequency_columns = self.database.columns[3:]
         self.doc_norms = np.sqrt(np.square(self.database[self.frequency_columns]).sum(axis=1))
-
-    def search(self, query: str) -> pd.DataFrame: 
-        query = normalize(query)
+    
+    def search(self, query: str) -> pd.DataFrame:
+        normalized_query = normalize(query)
         
-        query = [word for word in set(query) if word in self.frequency_columns]
+        query_words = [word for word in set(normalized_query) if word in self.frequency_columns]
         
-        if not query:
+        if not query_words:
             return pd.DataFrame()
-           
-        up = self.database[query].sum(axis=1)
-
-        down = np.sqrt(len(query)) * self.doc_norms
+            
+        up = self.database[query_words].sum(axis=1)
+        down = np.sqrt(len(query_words)) * self.doc_norms
         
         scores = np.divide(up, down, out=np.zeros_like(up), where=down!=0)
 
         results = self.database[["TITLE", "URL"]].copy()
         results['SCORE'] = scores
         
-        sorted_results = results[results['SCORE'] > 0].sort_values(by='SCORE', ascending=False).reset_index(drop=True)
-        return sorted_results
+        sorted_results = results[results['SCORE'] > 0.07].sort_values(by='SCORE', ascending=False)
+        
+        if sorted_results.empty:
+            return pd.DataFrame()
 
-if __name__ == '__main__':
-    search_engine = Search(database="processors/data.csv")
-    
-    user_query = "russia"
-    search_results = search_engine.search(user_query)
-    
-    print(f"\nSearch results for: '{user_query}'")
-    print(search_results)
+        found_docs_vectors = self.database.loc[sorted_results.index][query_words]
+        
+        found_words_list = found_docs_vectors.apply(
+            lambda row: row[row > 0].index.tolist(), 
+            axis=1
+        )
+
+        final_results = pd.DataFrame({
+            'TITLE': sorted_results['TITLE'],
+            'URL': sorted_results['URL'],
+            'found_words': found_words_list,
+            'SCORE': sorted_results['SCORE']
+        })
+        
+        return final_results.reset_index(drop=True)

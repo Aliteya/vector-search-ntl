@@ -2,3 +2,4 @@
 __pycache__/
 /local_fs
 data.csv
+precision_recall_curve.png

@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r parser-requirements.txt
 
 RUN python parser.py
 
-FROM python:3.11-slim 
+FROM python:3.11-slim AS builder 
 
 WORKDIR /app
 

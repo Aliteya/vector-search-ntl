@@ -8,7 +8,7 @@ logging.basicConfig(
 )
 
 def normalize(sentence) -> List[str]:
-    valid = ["NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]
+    valid = ['NN', 'NNS', 'NNP', 'NNPS', 'JJ', 'JJR', 'JJS', 'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ', 'CD']
 
     logging.debug(f'Start normalize sentence: {sentence}')
     tokenizer = nltk.TweetTokenizer()
