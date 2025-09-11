@@ -39,9 +39,10 @@ class MetricsCalculator:
             'Recall': recall,
             'F-measure': f_measure
         }
-        
+            
     def calculate_rank_metrics(self) -> dict:
         metrics = {}
+  
         for n in [5, 10]:
             top_n = self.results.head(n)
             relevant_in_top_n = len(set(top_n['TITLE']).intersection(set(self.ground_truth)))
@@ -54,21 +55,23 @@ class MetricsCalculator:
             metrics['R-Precision'] = relevant_in_top_r / r
         else:
             metrics['R-Precision'] = 0.0
-            
+                
         if self.total_relevant == 0:
             metrics['Average Precision'] = 0.0
         else:
-            precisions = []
-            relevant_count = 0
-            for i, row in self.results.iterrows():
-                if row['TITLE'] in self.ground_truth:
-                    relevant_count += 1
-                    precisions.append(relevant_count / (i + 1))
+            precisions_at_hits = []
+            relevant_found_count = 0
+
+            for position, title in enumerate(self.results['TITLE'], 1):
+                if title in self.ground_truth:
+                    relevant_found_count += 1
+                    precision_at_k = relevant_found_count / position
+                    precisions_at_hits.append(precision_at_k)
             
-            if not precisions:
-                 metrics['Average Precision'] = 0.0
+            if not precisions_at_hits:
+                metrics['Average Precision'] = 0.0
             else:
-                 metrics['Average Precision'] = sum(precisions) / self.total_relevant
+                metrics['Average Precision'] = sum(precisions_at_hits) / self.total_relevant
 
         return metrics
 
