@@ -1,51 +1,67 @@
-from processors import Crawler, Search
 import os
+import logging
+import uvicorn
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from watchdog.observers import Observer
 
-def main_menu():
+from processors import IndexUpdater, FileChangeHandler
+from processors import Search
 
-    while True:
-        print("\n===== Главное меню поисковой системы =====")
-        print("1. Создать/Обновить поисковый индекс")
-        print("2. Начать поиск")
-        print("3. Выйти")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+PATH_TO_WATCH = "local_fs"
+DB_PATH = "processors/data.csv"
+
+if not os.path.exists(PATH_TO_WATCH):
+    logging.warning(f"Папка '{PATH_TO_WATCH}' не найдена. Создаю пустую папку.")
+    os.makedirs(PATH_TO_WATCH)
+
+logging.info("Запуск первоначальной индексации...")
+indexer = IndexUpdater(watch_path=PATH_TO_WATCH, db_path=DB_PATH)
+logging.info("Первоначальная индексация завершена.")
+
+event_handler = FileChangeHandler(indexer)
+observer = Observer()
+observer.schedule(event_handler, PATH_TO_WATCH, recursive=True)
+observer.start()
+logging.info(f"Наблюдатель запущен и отслеживает изменения в '{PATH_TO_WATCH}'.")
+
+app = FastAPI(title="Search Engine API")
+
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/", response_class=HTMLResponse)
+async def show_search_form(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/", response_class=HTMLResponse)
+async def handle_search_query(request: Request, query: str = Form(...)):
+    results_list = []
+    if query:
+        if not os.path.exists(DB_PATH):
+             return templates.TemplateResponse("index.html", {
+                "request": request, "query": query, "results": []
+            })
         
-        choice = input("Выберите действие: ")
+        search_engine = Search(database=indexer.tfidf_database)
+        search_results_df = search_engine.search(query)
         
-        if choice == '1':
-            if not os.path.exists("local_fs") or not os.listdir("local_fs"):
-                print("Ошибка: папка 'local_fs' пуста. Сначала скачайте статьи (пункт 1).")
-                continue
-            print("\n--- Начинается процесс индексации... ---")
-            crawler = Crawler()
-            print("--- Индексация успешно завершена. Файл 'data.csv' создан/обновлен. ---")
+        results_list = search_results_df.to_dict(orient='records')
 
-        elif choice == '2':
-            if not os.path.exists("processors/data.csv"):
-                print("Ошибка: файл 'data.csv' не найден. Сначала создайте индекс (пункт 2).")
-                continue
+    return templates.TemplateResponse("index.html", {
+        "request": request, 
+        "results": results_list, 
+        "query": query
+    })
 
-            search_engine = Search(database="processors/data.csv")
-            print("\n--- Режим поиска ---")
-            
-            while True:
-                user_query = input("Введите ваш запрос (или 'exit' для возврата в меню): ")
-                if user_query.lower() == 'exit':
-                    break
-                
-                search_results = search_engine.search(user_query)
-                
-                if search_results.empty:
-                    print("По вашему запросу ничего не найдено.")
-                else:
-                    print("\n--- Результаты поиска: ---")
-                    print(search_results)
-
-        elif choice == '3':
-            print("Выход из программы.")
-            break
-            
-        else:
-            print("Неверный выбор. Пожалуйста, введите число от 1 до 4.")
 
 if __name__ == '__main__':
-    main_menu()
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=8000)
+    finally:
+        logging.info("Application is shutting down...")
+        observer.stop()
+        observer.join()
+        indexer.save_database()
+        logging.info("Shutdown complete.")

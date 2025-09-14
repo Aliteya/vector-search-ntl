@@ -1,3 +1,5 @@
 pandas
 nltk
 numpy
+fastapi[all]
+watchdog

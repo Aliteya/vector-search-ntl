@@ -123,8 +123,18 @@ def run_evaluation_submenu():
     if not os.path.exists("processors/data.csv"):
         print("Ошибка: файл 'data.csv' не найден. Сначала создайте индекс.")
         return
-        
-    search_engine = Search(database="processors/data.csv")
+
+    database = pd.read_csv("processors/data.csv", index_col=0)
+
+    numeric_columns = [
+        col for col in database.columns 
+        if col not in ['TITLE', 'URL', 'TEXT']
+    ]
+
+    for col in numeric_columns:
+        database[col] = pd.to_numeric(database[col], errors='coerce').fillna(0).astype(int)
+    database[numeric_columns] = database[numeric_columns].astype(np.float64)
+    search_engine = Search(database=database)
     query = input("Введите тестовый запрос: ")
     print("Введите эталонные заголовки релевантных статей (каждый с новой строки, пустая строка для завершения):")
     ground_truth = []

@@ -3,12 +3,16 @@ import numpy as np
 from .text_processing import normalize
 
 class Search:
-    def __init__(self, database: str = "data.csv"):
-        self.database = pd.read_csv(database, index_col=0)
+    def __init__(self, database: pd.DataFrame):
+        self.database = database
+        if self.database.empty:
+            return
         self.frequency_columns = self.database.columns[3:]
         self.doc_norms = np.sqrt(np.square(self.database[self.frequency_columns]).sum(axis=1))
     
     def search(self, query: str) -> pd.DataFrame:
+        if self.database.empty:
+            return pd.DataFrame()
         normalized_query = normalize(query)
         
         query_words = [word for word in set(normalized_query) if word in self.frequency_columns]
