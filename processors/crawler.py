@@ -16,8 +16,8 @@ pd.set_option('display.max_colwidth', None)
 pd.set_option('display.width', 1000) 
 
 class IndexUpdater:
-    def __init__(self, watch_path="local_fs", db_path="processors/data.csv"):
-        self.watch_path = watch_path
+    def __init__(self, watch_paths: list, db_path="processors/data.csv"):
+        self.watch_paths = watch_paths
         self.db_path = db_path
         self.columns = ["TITLE", "URL", "TEXT"]
         
@@ -28,25 +28,26 @@ class IndexUpdater:
         self.initial_crawl()
 
     def initial_crawl(self):
-        logging.info(f'Starting initial sync with directory: {self.watch_path}')
-        if not os.path.exists(self.watch_path):
-            os.makedirs(self.watch_path)
-        
-        self.tf_database = pd.DataFrame(columns=self.columns)
-        
-        for root, dirs, files in os.walk(self.watch_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                self._process_file_addition(file_path)
+        for path in self.watch_paths:
+            logging.info(f'Starting initial sync with directory: {path}')
+            if not os.path.exists(path):
+                os.makedirs(path)
+            
+            for root, dirs, files in os.walk(path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    self._process_file_addition(file_path)
         
         self.tf_database.fillna(0, inplace=True)
         self.set_weights()
-        logging.info("In-memory index is ready.")
+        self.save_database()
+        logging.info(f"In-memory index is ready for paths: {self.watch_paths}.")
 
     def add_file(self, file_path: str):
         self._process_file_addition(file_path)
         self.tf_database.fillna(0, inplace=True)
         self.set_weights()
+        self.save_database()
         logging.info(f"In-memory index updated for file: {file_path}")
 
     def _process_file_addition(self, file_path: str):
@@ -71,6 +72,7 @@ class IndexUpdater:
             self.tf_database = self.tf_database[self.tf_database['URL'] != file_path].reset_index(drop=True)
             logging.info(f"File removed from in-memory TF index: {file_path}")
             self.set_weights()
+            self.save_database()
 
     def set_weights(self):
         logging.info("Recalculating TF-IDF weights using vectorized operations...")

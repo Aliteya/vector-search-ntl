@@ -10,8 +10,8 @@ def is_article(title: str) -> bool:
 
 if __name__ == '__main__':
     wikipedia.set_lang("en")
-    if not os.path.exists("local_fs"):
-        os.makedirs("local_fs")
+    if not os.path.exists("local_fs2"):
+        os.makedirs("local_fs2")
     page_titles = wikipedia.random(pages=20)
     warnings.catch_warnings()
     warnings.simplefilter("ignore")
@@ -19,7 +19,7 @@ if __name__ == '__main__':
         try:
             page = wikipedia.page(title=page_title)
             if is_article(page.title):
-                page_url = "local_fs/" + page.title + ".txt"
+                page_url = "local_fs2/" + page.title + ".txt"
                 with open(page_url, "w+", encoding="utf-8") as file:
                     file.write(page.summary)
         except AttributeError:

@@ -1,5 +1,6 @@
 /venv
 __pycache__/
 /local_fs
+/local_fs2
 data.csv
 precision_recall_curve.png

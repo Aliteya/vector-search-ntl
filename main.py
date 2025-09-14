@@ -10,24 +10,29 @@ from processors import IndexUpdater, FileChangeHandler
 from processors import Search
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-PATH_TO_WATCH = "local_fs"
+PATHS_TO_WATCH = ["local_fs", "local_fs2"]
 DB_PATH = "processors/data.csv"
 
-if not os.path.exists(PATH_TO_WATCH):
-    logging.warning(f"Папка '{PATH_TO_WATCH}' не найдена. Создаю пустую папку.")
-    os.makedirs(PATH_TO_WATCH)
+for path in PATHS_TO_WATCH:
+    if not os.path.exists(path):
+        logging.warning(f"Папка '{path}' не найдена. Создаю пустую папку.")
+        os.makedirs(path)
 
 logging.info("Запуск первоначальной индексации...")
-indexer = IndexUpdater(watch_path=PATH_TO_WATCH, db_path=DB_PATH)
+indexer = IndexUpdater(watch_paths=PATHS_TO_WATCH, db_path=DB_PATH)
 logging.info("Первоначальная индексация завершена.")
 
 event_handler = FileChangeHandler(indexer)
 observer = Observer()
-observer.schedule(event_handler, PATH_TO_WATCH, recursive=True)
-observer.start()
-logging.info(f"Наблюдатель запущен и отслеживает изменения в '{PATH_TO_WATCH}'.")
 
-app = FastAPI(title="Search Engine API")
+for path in PATHS_TO_WATCH:
+    observer.schedule(event_handler, path, recursive=True)
+    logging.info(f"Наблюдатель настроен для папки: '{path}'.")
+
+observer.start()
+logging.info(f"Наблюдатель запущен и отслеживает изменения в: {PATHS_TO_WATCH}.")
+
+app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
