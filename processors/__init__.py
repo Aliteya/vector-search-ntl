@@ -1,2 +1,2 @@
-from .crawler import IndexUpdater, FileChangeHandler  #Crawler
-from .search import Search
+from .crawler import VectorIndexer, FileChangeHandler  #Crawler
+from .search import VectorSearch

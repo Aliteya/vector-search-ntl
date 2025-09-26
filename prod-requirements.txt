@@ -3,3 +3,5 @@ nltk
 numpy
 fastapi[all]
 watchdog
+sentence-transformers 
+faiss-cpu

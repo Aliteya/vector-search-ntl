@@ -5,23 +5,128 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Поисковая система</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #eaf9e4; color: #333; max-width: 800px; margin: 40px auto; padding: 20px; }
-        h1 { color: hsl(108, 64%, 52%); }
-        form { display: flex; margin-bottom: 20px; }
-        input[type="text"] { flex-grow: 1; padding: 10px; border: 1px solid #eaf9e4; border-radius: 4px; }
-        button { padding: 10px 15px; background-color: hsl(108, 64%, 52%); color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px; }
-        button:hover { background-color: hsl(108, 64%, 52%); }
-        .results-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .results-table th, .results-table td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        .results-table th { background-color:hsl(108, 64%, 52%);; color: white; }
-        .results-table tr:nth-child(even) { background-color: #e2fee2; }
-        .score { font-weight: bold; }
-        .no-results { color: #777; }
+        /* Общие стили для страницы */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f7fff5; /* Очень светлый зеленый фон */
+            color: #333;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        /* Заголовок */
+        h1 {
+            color: #27ae60; /* Более тёмный и насыщенный зеленый */
+            display: flex;
+            align-items: center;
+        }
+        
+        h1::before {
+            content: '👀';
+            font-size: 2rem;
+            margin-right: 15px;
+        }
+
+        /* Форма поиска */
+        form {
+            display: flex;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Тень для формы */
+            border-radius: 8px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 15px;
+            border: 2px solid transparent; /* Убираем видимую рамку */
+            border-radius: 8px 0 0 8px;
+            font-size: 16px;
+            outline: none; /* Убираем обводку при фокусе */
+        }
+        input[type="text"]:focus {
+            border-color: #2ecc71; /* Рамка при фокусе */
+        }
+        button {
+            padding: 15px 20px;
+            background-color: #2ecc71; /* Яркий зеленый */
+            color: white;
+            border: none;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease; /* Плавный переход */
+        }
+        button:hover {
+            background-color: #27ae60; /* Затемнение при наведении */
+        }
+
+        /* Стили для таблицы результатов */
+        .results-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.07);
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse; /* Убираем двойные рамки */
+        }
+        
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e8f5e9; /* Светлая линия-разделитель */
+        }
+        
+        /* Заголовки таблицы */
+        thead th {
+            color: #27ae60;
+            font-size: 14px;
+            text-transform: uppercase;
+            border-bottom-width: 2px;
+            border-color: #27ae60;
+        }
+        
+        /* Строки таблицы */
+        tbody tr:hover {
+            background-color: #f7fff5; /* Подсветка строки при наведении */
+        }
+        
+        td {
+            color: #555;
+            vertical-align: middle;
+        }
+        
+        /* Оформление для найденных слов */
+        .found-words-cell span {
+            display: inline-block;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin-right: 5px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .no-results {
+            color: #777;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #e0e0e0;
+            margin: 30px 0;
+        }
+
     </style>
 </head>
 <body>
 
-    <h1>👀 Поисковая система</h1>
+    <h1>Поисковая система</h1>
     <p>Индекс обновляется в реальном времени. Просто начните поиск.</p>
 
     <form method="post">
@@ -30,34 +135,35 @@
     </form>
 
     {% if results is not none %}
-        <hr>
-        <h2>Результаты поиска:</h2>
-        {% if results %}
-            <table class="results-table">
-                <thead>
-                    <tr>
-                        <th>Заголовок</th>
-                        <th>Найденные слова</th>
-                        <th>Оценка</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in results %}
-                    <tr>
-                        <td>
-                            <a href="file:///{{ row.URL | replace('\\', '/') }}" target="_blank">{{ row.TITLE }}</a>
-                            <br>
-                            <small style="color: #555;">{{ row.URL }}</small> 
-                        </td>
-                        <td>{{ row.found_words | join(', ') }}</td>
-                        <td class="score">{{ "%.4f" | format(row.SCORE) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p class="no-results">По вашему запросу ничего не найдено.</p>
-        {% endif %}
+        <div class="results-container">
+            <h2>Результаты поиска:</h2>
+            {% if results %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Заголовок (Путь к файлу)</th>
+                            <th>Найденные слова</th>
+                            <th>Оценка</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                            <tr>
+                                <td>{{ row.path }}</td>
+                                <td class="found-words-cell">
+                                    {% for word in row.found_words %}
+                                        <span>{{ word }}</span>
+                                    {% endfor %}
+                                </td>
+                                <td><b>{{ "%.4f" | format(row.score) }}</b></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="no-results">По вашему запросу ничего не найдено.</p>
+            {% endif %}
+        </div>
     {% endif %}
 
 </body>

@@ -1,9 +1,9 @@
 import pandas as pd
-import numpy as np
 import os
-from .text_processing import normalize
+import faiss
+import pickle
+from sentence_transformers import SentenceTransformer
 import logging
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 logging.basicConfig(
@@ -15,17 +15,28 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_colwidth', None) 
 pd.set_option('display.width', 1000) 
 
-class IndexUpdater:
-    def __init__(self, watch_paths: list, db_path="processors/data.csv"):
-        self.watch_paths = watch_paths
-        self.db_path = db_path
-        self.columns = ["TITLE", "URL", "TEXT"]
-        
-        self.tf_database = pd.DataFrame(columns=self.columns)
-        self.tfidf_database = pd.DataFrame(columns=self.columns)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-        logging.info("Creating a new in-memory index.")
-        self.initial_crawl()
+class VectorIndexer:
+    def __init__(self, watch_paths: list, index_path="vector_index.faiss", map_path="path_map.pkl"):
+        self.watch_paths = watch_paths
+        self.index_path = index_path
+        self.map_path = map_path
+        
+        logging.info("Loading sentence transformer model...")
+        self.model = SentenceTransformer('all-mpnet-base-v2')
+        self.d = self.model.get_sentence_embedding_dimension()
+
+        self.index = None
+        self.path_to_id = {}
+        self.id_to_path = {}
+
+        self.load_index()
+        if not self.path_to_id: 
+            logging.info("Creating a new vector index.")
+            self.initial_crawl()
+        else:
+            logging.info("Loaded existing index.")
 
     def initial_crawl(self):
         for path in self.watch_paths:
@@ -33,104 +44,94 @@ class IndexUpdater:
             if not os.path.exists(path):
                 os.makedirs(path)
             
-            for root, dirs, files in os.walk(path):
+            for root, _, files in os.walk(path):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    self._process_file_addition(file_path)
+                    self.add_file(file_path)
         
-        self.tf_database.fillna(0, inplace=True)
-        self.set_weights()
-        self.save_database()
-        logging.info(f"In-memory index is ready for paths: {self.watch_paths}.")
+        self.save_index()
+        logging.info(f"Vector index is ready for paths: {self.watch_paths}")
 
     def add_file(self, file_path: str):
-        self._process_file_addition(file_path)
-        self.tf_database.fillna(0, inplace=True)
-        self.set_weights()
-        self.save_database()
-        logging.info(f"In-memory index updated for file: {file_path}")
+        if file_path in self.path_to_id:
+            logging.info(f"File '{file_path}' exists. Re-indexing.")
+            self.remove_file(file_path)
 
-    def _process_file_addition(self, file_path: str):
-        file_title = os.path.splitext(os.path.basename(file_path))[0]
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                file_text = f.read()
-        except Exception:
-            file_text = ''
+                content = f.read()
+            if not content.strip():
+                logging.warning(f"File '{file_path}' is empty. Skipping.")
+                return
 
-        if file_path in self.tf_database['URL'].values:
-            self.tf_database = self.tf_database[self.tf_database['URL'] != file_path].reset_index(drop=True)
+            embedding = self.model.encode([content])
 
-        main_data = pd.DataFrame([[file_title, file_path, file_text]], columns=self.columns)
-        tokenized_sentence = self.tokenize(file_text)
-        indexing_data = pd.DataFrame([tokenized_sentence], dtype=pd.Int8Dtype())
-        data = pd.concat([main_data, indexing_data], axis=1)
-        self.tf_database = pd.concat([self.tf_database, data], axis=0, ignore_index=True)
+            faiss.normalize_L2(embedding.astype('float32'))
+            
+            new_id = self.index.ntotal
+            self.index.add(embedding)
+
+            self.path_to_id[file_path] = new_id
+            self.id_to_path[new_id] = file_path
+            
+            logging.info(f"Added/Updated file: {file_path} with ID: {new_id}")
+
+        except Exception as e:
+            logging.error(f"Failed to process file {file_path}: {e}")
 
     def remove_file(self, file_path: str):
-        if file_path in self.tf_database['URL'].values:
-            self.tf_database = self.tf_database[self.tf_database['URL'] != file_path].reset_index(drop=True)
-            logging.info(f"File removed from in-memory TF index: {file_path}")
-            self.set_weights()
-            self.save_database()
-
-    def set_weights(self):
-        logging.info("Recalculating TF-IDF weights using vectorized operations...")
-        if self.tf_database.empty:
-            self.tfidf_database = pd.DataFrame(columns=self.columns)
+        if file_path not in self.path_to_id:
+            logging.warning(f"Attempted to remove non-existent file: {file_path}")
             return
-        
-        self.tfidf_database = self.tf_database.copy()
 
-        frequency_columns = [col for col in self.tfidf_database.columns if col not in self.columns]
-        if not frequency_columns:
-            logging.info("No words to index. Skipping weight calculation.")
-            return
-            
-        num_docs = len(self.tfidf_database)
+        file_id = self.path_to_id[file_path]
+        del self.path_to_id[file_path]
+        del self.id_to_path[file_id]
         
-        doc_freqs = (self.tfidf_database[frequency_columns] > 0).sum(axis=0)
+        logging.info(f"Removed file from maps: {file_path} with ID: {file_id}")
+    
+    def save_index(self):
+        logging.info(f"Saving index to {self.index_path}...")
+        faiss.write_index(self.index, self.index_path)
         
-        idf = np.log((1 + num_docs) / (1 + doc_freqs)) + 1
-        
-        self.tfidf_database[frequency_columns] = self.tfidf_database[frequency_columns] * idf
-        
-        logging.info("Weights recalculated successfully.")
-        
-    def save_database(self):
-        logging.info(f"Saving TF index to {self.db_path}...")
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.tf_database.to_csv(self.db_path)
-        logging.info("Index saved successfully.")
+        with open(self.map_path, 'wb') as f:
+            pickle.dump({'path_to_id': self.path_to_id, 'id_to_path': self.id_to_path}, f)
+        logging.info("Index and map saved successfully.")
 
-    @staticmethod
-    def tokenize(sentence: str) -> dict:
-        normalized = normalize(sentence)
-        frequency = {word: normalized.count(word) for word in set(normalized)}
-        return frequency
+    def load_index(self):
+        if os.path.exists(self.index_path) and os.path.exists(self.map_path):
+            logging.info("Loading index from disk...")
+            self.index = faiss.read_index(self.index_path)
+            with open(self.map_path, 'rb') as f:
+                maps = pickle.load(f)
+                self.path_to_id = maps['path_to_id']
+                self.id_to_path = maps['id_to_path']
+        else:
+            logging.info("No existing index found. Initializing a new one.")
+            self.index = faiss.IndexFlatIP(self.d)
 
 
 class FileChangeHandler(FileSystemEventHandler):
-    def __init__(self, indexer: IndexUpdater):
+    def __init__(self, indexer: VectorIndexer):
         self.indexer = indexer
 
     def on_created(self, event):
         if not event.is_directory:
-            logging.info(f"File created: {event.src_path}")
             self.indexer.add_file(event.src_path)
+            self.indexer.save_index()
 
     def on_modified(self, event):
         if not event.is_directory:
-            logging.info(f"File modified: {event.src_path}")
-            self.indexer.add_file(event.src_path) 
+            self.indexer.add_file(event.src_path)
+            self.indexer.save_index()
 
     def on_deleted(self, event):
         if not event.is_directory:
-            logging.info(f"File deleted: {event.src_path}")
             self.indexer.remove_file(event.src_path)
+            self.indexer.save_index()
 
     def on_moved(self, event):
         if not event.is_directory:
-            logging.info(f"File moved: from {event.src_path} to {event.dest_path}")
             self.indexer.remove_file(event.src_path)
             self.indexer.add_file(event.dest_path)
+            self.indexer.save_index()

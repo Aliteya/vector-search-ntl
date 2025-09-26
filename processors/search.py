@@ -1,50 +1,39 @@
-import pandas as pd
-import numpy as np
+import faiss
+from .crawler import VectorIndexer
 from .text_processing import normalize
 
-class Search:
-    def __init__(self, database: pd.DataFrame):
-        self.database = database
-        if self.database.empty:
-            return
-        self.frequency_columns = self.database.columns[3:]
-        self.doc_norms = np.sqrt(np.square(self.database[self.frequency_columns]).sum(axis=1))
-    
-    def search(self, query: str) -> pd.DataFrame:
-        if self.database.empty:
-            return pd.DataFrame()
-        normalized_query = normalize(query)
-        
-        query_words = [word for word in set(normalized_query) if word in self.frequency_columns]
-        
-        if not query_words:
-            return pd.DataFrame()
-            
-        up = self.database[query_words].sum(axis=1)
-        down = np.sqrt(len(query_words)) * self.doc_norms
-        
-        scores = np.divide(up, down, out=np.zeros_like(up), where=down!=0)
+class VectorSearch:
+    def __init__(self, indexer: VectorIndexer):
+        self.model = indexer.model
+        self.index = indexer.index
+        self.id_to_path = indexer.id_to_path
 
-        results = self.database[["TITLE", "URL"]].copy()
-        results['SCORE'] = scores
-        
-        sorted_results = results[results['SCORE'] > 0.07].sort_values(by='SCORE', ascending=False)
-        
-        if sorted_results.empty:
-            return pd.DataFrame()
+    def search(self, query: str, top_k=5) -> list:
+        if self.index.ntotal == 0:
+            return []
 
-        found_docs_vectors = self.database.loc[sorted_results.index][query_words]
+        query_embedding = self.model.encode([query])
+        faiss.normalize_L2(query_embedding.astype('float32'))
         
-        found_words_list = found_docs_vectors.apply(
-            lambda row: row[row > 0].index.tolist(), 
-            axis=1
-        )
-
-        final_results = pd.DataFrame({
-            'TITLE': sorted_results['TITLE'],
-            'URL': sorted_results['URL'],
-            'found_words': found_words_list,
-            'SCORE': sorted_results['SCORE']
-        })
+        similarities, indices = self.index.search(query_embedding, top_k)   
+        normalized_query_words = set(normalize(query))
+        results = []
+        for i, idx in enumerate(indices[0]):
+            if idx in self.id_to_path: 
+                file_path = self.id_to_path[idx]
+                
+                found_words = []
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        normalized_content_words = set(normalize(content))
+                        found_words = list(normalized_query_words.intersection(normalized_content_words))
+                except Exception:
+                    found_words = []
+                results.append({
+                    'path': self.id_to_path[idx],
+                    'score': similarities[0][i],
+                    'found_words': found_words 
+                })
         
-        return final_results.reset_index(drop=True)
+        return results
